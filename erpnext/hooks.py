@@ -299,3 +299,23 @@ regional_overrides = {
 		'erpnext.controllers.taxes_and_totals.update_itemised_tax_data': 'erpnext.regional.united_arab_emirates.utils.update_itemised_tax_data'
 	}
 }
+
+
+scheduler_events = {
+	"all": [
+# 			"washmis_erp.tasks.all"
+			"erpnext.tasks.main_function"
+	],
+	"daily": [
+# 		"washmis_erp.tasks.daily"
+	],
+	"hourly": [
+# 		"washmis_erp.tasks.hourly"
+	],
+	"weekly": [
+# 		"washmis_erp.tasks.weekly"
+	]
+# 	"monthly": [
+# # 		"washmis_erp.tasks.monthly"
+# 	]
+}
