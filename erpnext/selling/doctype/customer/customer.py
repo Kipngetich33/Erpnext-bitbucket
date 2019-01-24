@@ -399,11 +399,9 @@ def get_customer_primary_address(doctype, txt, searchfield, start, page_len, fil
 		})
 
 
-
 # ================================================================================================
 
 # the code below are custom controllers for the customer Doctype
-
 
 def check_required_details(self):
 	# check previous reading
@@ -423,6 +421,12 @@ def check_required_details(self):
 		pass
 	else:
 		frappe.throw("Add an Account to This Customer")
+
+	# check if type of customer is given
+	if(self.customer_group == None):
+		frappe.throw("Customer's Group Field is Empty")
+	else:
+		pass
 
 def add_customer_system_no(self):
 	'''
@@ -473,4 +477,12 @@ def save_new_system_no(self):
 	else:
 		# create a new system_no
 		frappe.throw("Something went wrong with the add_customer_system_no function")
+
+def check_duplicate_customers(self):
+	'''
+	function that checks for duplicates before saving 
+	a new customer
+	arg:
+	'''
+	pass
 

@@ -28,19 +28,22 @@ class TestCustomerGroup(unittest.TestCase):
         '''
         Runs at the beggining of each tests
         '''
+        self.test_customer_group = frappe.get_doc({
+			"doctype":"Customer Group",
+			"parent_customer_group":"All Customer Groups",
+            "customer_group_name":"Test Customer Group"
+		})
+        # self.test_customer_group.insert()
+
+    
+    def tearDown(self):
+        # self.test_customer_group = frappe.get_doc({
+        #     "doctype":"Customer Group",
+        #     "name":"Test Customer Group"
+		# })
+        # self.test_customer_group.delete()
         pass
+
 
     def test_cus(self): 
         pass
-
-
-# test customer
-# self.test_customer_1 = frappe.get_doc({
-# 	"doctype":"Customer Group",
-# 	"customer_name":"Test Customer",
-# 	"customer_group":"Domestic",
-# 	"territory":"Kenya",
-# 	"area":"Area A",
-# 	"zone":"Zone 1.0",
-# 	"route":"Route 1.1"
-# })

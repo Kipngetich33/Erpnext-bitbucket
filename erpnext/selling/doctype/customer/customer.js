@@ -191,7 +191,7 @@ function add_custom_buttons(button_name,new_status){
 	cur_frm.add_custom_button(__(button_name), function(){
 		
 		if(new_status == "Supercede"){
-			console.log("super seeed")
+			console.log("supercede")
 			if(cur_frm.doc.status == "Terminated" || cur_frm.doc.status == "Inactive"){
 				alert_function("Do you want to supercede this account",supercede_function)
 				

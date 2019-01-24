@@ -1104,6 +1104,11 @@ var add_to_item_line = function(frm, checked_values, invoice_healthcare_services
 /* This section contains code from the general functions section
 which are called is the form triggered functions section*/
 
+
+
+
+
+
 // global variables
 var rowcount = 0;
 var currentrow = 0;
@@ -1111,6 +1116,10 @@ var customer_meter_no
 var disconnection_profiles
 var defined_flat_rate = "0-6"
 var defined_grace_period = 14
+var required_fields_for_each_invoice= {
+	bill:["customer",]
+}
+
 // 
 // function that adds rows to items child table
 function add_rows_and_values(i,current_item_name){
@@ -1164,7 +1173,6 @@ function set_general_details(data){
 	cur_frm.set_value("tel_no",data.message.tel_no);
 	cur_frm.set_value("account_no",data.message.new_account_no);
 	cur_frm.set_value("territory",data.message.territory);
-
 }
 
 			
@@ -1229,7 +1237,7 @@ function add_meter_rent(tariff_category){
 }
 
 
-// function that loops through the list of tarrifs and find 
+// function that loops through the list of tarifs and find 
 // those applicable to the consumption
 function loop_through_tariffs(response){
 	cur_frm.clear_table("items"); 
@@ -1239,7 +1247,7 @@ function loop_through_tariffs(response){
 	var list_of_items = response.message
 	list_of_items.sort(function(a,b){return a.max_quantity - b.max_quantity});
 	
-	// looping throough list of items(tarrifs)
+	// looping throough list of items(tarifs)
 	for(var i=0;i<list_of_items.length;i++){
 		var current_item = list_of_items[i]
 		if(cur_frm.doc.consumption){
@@ -1276,9 +1284,10 @@ function loop_through_tariffs(response){
 }
 
 
-// function that get tarrifs and add values to items
+// function that get tariffs and add values to items
 function add_items(){
 	// check is tariff category is defined
+	console.log("within add items")
 	if(cur_frm.doc.tariff_category){
 		frappe.call({
 			"method": "frappe.client.get_list",
@@ -1288,11 +1297,20 @@ function add_items(){
 					type_of_customer:cur_frm.doc.tariff_category,
 					type_of_item:"Tariff"
 				},
-				fields:["name","item_group","max_quantity","min_quantity","difference_btw_max_and_min"]
+				fields:["*"]
 			},
-			callback: function(response) {	
-				// looping through the list of tarrifs
-				loop_through_tariffs(response)
+			callback: function(response) {
+				if(response.message.length > 0){
+					loop_through_tariffs(response)
+				}
+				else{
+					alert_message("No Items(Tariffs and Rates) Found")
+				}
+				
+				console.log("found items")
+				console.log(response)
+				// looping through the list of tariffs
+				
 			}
 		});
 	}
@@ -1351,10 +1369,13 @@ function set_customer_details(){
 			filters: {"Name":cur_frm.doc.customer} 
 		},
 		callback: function (data) {
+			console.log("customer name")
+			console.log(cur_frm.doc.customer)
 			set_general_details(data) /* set customer details and readings*/
 			
 			// check if from finish capture
 			if (cur_frm.doc.from_finish_capture){
+				console.log("yes from finish capture")
 				add_items() /*add values to child table items*/
 				get_the_next_customer()/* get the next customer from meter reading capture*/
 			}
@@ -1366,6 +1387,44 @@ function set_customer_details(){
 	})
 }
 
+// function that checks that all the required fields are filled
+function check_required_fields(type_of_bill){
+
+
+}
+
+/*function that hides fields ,called on refresh*/
+function hide_unhide_fields(frm,list_of_fields,hide_or_unhide){
+	for(var i = 0; i < list_of_fields.length; i++){
+		frm.toggle_display(list_of_fields[i],hide_or_unhide)
+	}
+}
+
+
+// function that hides or unhides certain fields on refresh
+function hide_unhide_on_refresh(frm){
+	var bill_fields = ["billing_period",
+				"previous_reading","current_reading","consumption",
+				"type_of_bill","disconnection_profile"
+			]
+	var new_connection_fields = ["deposit","new_connection_fee"]
+
+	if(frm.doc.type_of_invoice == "Bill"){
+		var list_of_fields = 
+		hide_unhide_fields(frm,bill_fields,true)
+		hide_unhide_fields(frm,new_connection_fields,false)
+	}
+	else if(frm.doc.type_of_invoice == "New Connection Fee"){
+		hide_unhide_fields(frm,bill_fields,false)
+		hide_unhide_fields(frm,new_connection_fields,true)
+	}
+	else{
+		hide_unhide_fields(frm,bill_fields,false)
+		hide_unhide_fields(frm,new_connection_fields,false)
+	}
+}
+
+
 /* end of the general functions section
 // =================================================================================================
 /* This section  contains functions that are triggered by the form action refresh or
@@ -1376,23 +1435,26 @@ reload to perform various action*/
 /*function that acts when the readings field under meter reading sheet is
 filled*/
 
-// the function below is the main function that that calls all the
-// other functions to fill the document it is triggered by filling
-// the customer field
-frappe.ui.form.on("Sales Invoice","customer",function(frm){ 
-		set_customer_details() /*set customer details etc*/
-});
- 
 
+// function that runs on refresh
 frappe.ui.form.on("Sales Invoice", "refresh", function(frm) {
-	console.log("refresh functionality")
+	console.log("Refreshing !")
+	hide_unhide_on_refresh(frm)
 
-	// set the disconnection date
-	set_disconnection_date()
-	
+	// customer_field()
+	// type_of_invoice_clicked(frm)
 })
 
+/* refresh in order to hide/unhide the correct fields*/
+frappe.ui.form.on("Sales Invoice","type_of_invoice",function(frm){ 
+	frm.refresh()
+})
 
+// function that runs when the customer field is clicked
+frappe.ui.form.on("Sales Invoice","customer",function(frm){
+	console.log("customer field clicked") 
+	//set_customer_details() /*set customer details etc*/
+});
 
 
 

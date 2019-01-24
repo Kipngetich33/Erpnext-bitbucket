@@ -28,7 +28,10 @@ def pull_from_ona():
 def process_pulled_data(data):
     '''
     Function that process the data pulled from ona form
+    add functionality to ensure that get rid of duplicates -
+    this functionality should be added to controllers 
     '''
+    print data
     if(len(data)>0):
         for record in data:
             current_record_details = {}
@@ -72,6 +75,7 @@ def save_new_customer_details(data):
     '''
     Function that saves the customer details
     '''
+    print "saving customer details"
     current_customer= frappe.get_doc({
         "doctype":"Customer",
         "customer_name":data["customer_name"],

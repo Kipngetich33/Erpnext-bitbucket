@@ -19,6 +19,7 @@ test_records = frappe.get_test_records('Customer')
 
 from six import iteritems
 
+'''
 class TestCustomer(unittest.TestCase):
 	def setUp(self):
 		if not frappe.get_value('Item', '_Test Item'):
@@ -225,7 +226,31 @@ def get_customer_dict(customer_name):
 		 "doctype": "Customer",
 		 "territory": "_Test Territory"
 	}
+'''
 
 
-# class TestCustomer1(unittest.TestCase):
-# 	pass
+# the code below is the custom tests for customer 
+class TestCustom(unittest.TestCase):
+	'''
+	This class hold the custom test written for custom functions
+	added to the customer to ensure that everything works properly
+	'''
+	def setUp(self):
+		self.test_customer_1 = frappe.get_doc({
+			"doctype":"Customer",
+			"customer_name":"Test Customer",
+			"customer_group":"Test Customer Group",
+			"territory":"Test Country",
+			"area":"Test Area A",
+			"zone":"Test Zone A",
+			"route":"Test Route 1.1"
+		})
+	
+	def tearDown(self):
+		'''
+		function that runs at the end of each test
+		'''
+		self.test_customer_1.delete()
+
+	def test_1(self):
+		pass
