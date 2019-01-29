@@ -734,15 +734,21 @@ frappe.ui.form.on("UOM Conversion Detail", {
 which are called is the form triggered functions section*/
 
 // global variables
-var required_fields = {tariff: ["min_quantity","max_quantity","difference_btw_max_and_min"]}
+var required_fields = {tariff: ["min_quantity","max_quantity","difference_btw_max_and_min"],
+						meter:["initial_reading"]
+					}
 
 function hide_unhide_on_refresh(frm,required_fields){
 	
 	if(frm.doc.type_of_item == "Tariff"){
 		hide_unhide_fields(frm,required_fields["tariff"],true)
 	}
+	else if(frm.doc.type_of_item == "Meter"){
+		hide_unhide_fields(frm,required_fields["meter"],true)
+	}
 	else{
-		hide_unhide_fields(frm,required_fields["tariff"],false)
+		hide_unhide_fields(frm,required_fields["tariff"],false),
+		hide_unhide_fields(frm,required_fields["meter"],false)
 	}
 }
 
