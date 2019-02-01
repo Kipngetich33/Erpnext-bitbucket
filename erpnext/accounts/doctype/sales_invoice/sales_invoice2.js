@@ -1099,21 +1099,630 @@ var add_to_item_line = function (frm, checked_values, invoice_healthcare_service
 };
 
 
-frappe.ui.form.on("Sales Invoice", "collect_items", function (frm) {
-	cur_frm.grids[0].grid.add_new_row(null,null,false);
-	cur_frm.refresh_field("items");
-	var newrow = cur_frm.grids[0].grid.grid_rows[cur_frm.grids[0].grid.grid_rows.length - 1].doc;
+// The section below contains custom scripts for the sales invoice
+// ================================================================================================
+/* This section contains code from the general functions section
+which are called is the form triggered functions section*/
 
-	// var new_row = frm.grids[0].grid.add_new_row(null, null, false);
-	cur_frm.doc.customer ="Brian"
-	newrow.item_code ="test Item"
-	newrow["qty"] = 1
-	newrow.item_name ="test Item"
-	newrow.description="test Item"
-	newrow.uom='M3'
-	newrow.income_account='Some Account - UL'
-	newrow.conversion_factor= 1
-	newrow.rate = 20
-	newrow.amount = 20
+// global variables
+var rowcount = 0;
+var currentrow = 0;
+var customer_meter_no
+var disconnection_profiles
+var defined_flat_rate = "0-6"
+var defined_grace_period = 14
+var required_fields_for_each_invoice = {
+	bill: ["customer", "billing_period", "route", "area", "zone",
+		"previous_reading", "current_reading", "consumption",
+		"type_of_bill", "disconnection_profile", "type_of_customer",
+		"type_of_invoice"
+	],
+	new_connection_fee: ["customer", "route", "area", "zone", 
+					"project","type_of_customer","type_of_invoice"
+				],
+	// deposit: ["customer", "route", "area", "zone", "project"],
+	deposit: ["customer","type_of_customer","type_of_invoice"],
+	penalty: ["customer", "type_of_customer","type_of_invoice","route", "area", "zone"],
+	other: ["customer","type_of_customer","type_of_invoice"]
+}
+
+var field_to_hide_unhide = {
+	bill: ["billing_period", "route", "area", "zone",
+		"previous_reading", "current_reading", "consumption",
+		"disconnection_profile", "type_of_bill", "collect_items"
+	],
+	new_connection_fee: ["route", "area", "zone", "project",
+		"collect_items"],
+	deposit: ["route", "area", "zone", "project", "collect_items"],
+	penalty: ["route", "area", "zone", "collect_items"],
+	other: [],
+	all: ["billing_period", "route", "area", "zone",
+		"previous_reading", "current_reading", "consumption",
+		"disconnection_profile", "project", "type_of_bill",
+		"collect_items"
+	],
+}
+
+// 
+// function that adds rows to items child table
+function add_rows_and_values(frm,i, current_item_name) {
+	cur_frm.clear_table("items");
 	cur_frm.refresh_field("items");
+	// frm.grids[0].grid.add_new_row(null, null, false);
+	// frm.refresh_field("items");
+	// var new_row = frm.add_child("items");
+	// frm.refresh_field("items");
+	// frm.doc.items[i].item = current_item_name
+}
+
+// function that alerts a message provided to it as parameter
+function alert_message(message_to_print) {
+	msgprint(message_to_print)
+}
+
+
+// function that converts a string date to a date object
+function parse_date(current_date) {
+	var split_date = current_date.split("-")
+	var current_month = parseInt(split_date[1]) - 1
+	var date_object = new Date(split_date[0], current_month, split_date[2])
+	return date_object
+}
+
+// function that sets the disconnection date
+function set_disconnection_date() {
+	// check if date is already set 
+	var days_difference_in_secs = parse_date(cur_frm.doc.due_date) - parse_date(cur_frm.doc.posting_date)
+	var days_difference = days_difference_in_secs / 86400000
+
+	if (days_difference < defined_grace_period && cur_frm.type_of_invoice == "bill") {
+		cur_frm.clear_table("payment_schedule");
+		cur_frm.refresh_field("payment_schedule");
+
+		// add number of days difined in defined_grace_period
+		var someDate = new Date();
+		someDate.setDate(someDate.getDate() + defined_grace_period);
+		cur_frm.set_value("due_date", someDate)
+	}
+	else {
+		// do nothing because the date is already set
+	}
+}
+
+
+// function that sets the general customer details
+function set_general_details(data) {
+	cur_frm.set_value("area", data.message.area);
+	cur_frm.set_value("zone", data.message.zone);
+	cur_frm.set_value("route", data.message.route);
+	cur_frm.set_value("tariff_category", data.message.customer_type);
+	cur_frm.set_value("disconnection_profile", data.message.disconnection_profile);
+	cur_frm.set_value("tel_no", data.message.tel_no);
+	cur_frm.set_value("account_no", data.message.new_account_no);
+	cur_frm.set_value("territory", data.message.territory);
+}
+
+
+// function that adds rows to the items child table
+function add_row_and_values(i, list_of_items, units_within_category) {
+	cur_frm.grids[0].grid.add_new_row(null, null, false);
+	cur_frm.refresh_field("items");
+
+	if (list_of_items[i].name == defined_flat_rate) {
+		take_units(1)
+	}
+	else {
+		take_units(units_within_category)
+	}
+
+	function take_units(units_within_category) {
+		var newrow = cur_frm.grids[0].grid.grid_rows[cur_frm.grids[0].grid.grid_rows.length - 1].doc;
+		newrow.item_code = list_of_items[i].name
+		newrow.qty = units_within_category
+		newrow.item_name = list_of_items[i].name
+		newrow.description = list_of_items[i].name
+		newrow.uom = 'm3'
+		newrow.income_account = "Cost of Goods Sold - UL"
+		newrow.uom_conversion_factor = 1
+	}
+
+}
+
+
+// functions that adds the meter rent based on the type of customer
+function add_meter_rent(tariff_category) {
+
+	// get customer meter type
+	frappe.call({
+		"method": "frappe.client.get_list",
+		args: {
+			doctype: "Item",
+			filters: {
+				type_of_customer: cur_frm.doc.tariff_category,
+				type_of_item: "Meter"
+			},
+			fields: ["name"]
+		},
+		callback: function (response) {
+			// add a new row for meter rent
+			cur_frm.grids[0].grid.add_new_row(null, null, false);
+			cur_frm.refresh_field("items");
+			var newrow = cur_frm.grids[0].grid.grid_rows[cur_frm.grids[0].grid.grid_rows.length - 1].doc;
+			newrow.item_code = response.message[0].name
+			newrow.qty = 1
+			newrow.item_name = response.message[0].name
+			newrow.description = response.message[0].name
+			newrow.uom = 'm3'
+			newrow.income_account = "Cost of Goods Sold - UL"
+			newrow.uom_conversion_factor = 1
+
+			// once the meter rent row and value is set save the form
+			cur_frm.save()
+		}
+	});
+
+}
+
+
+// function that loops through the list of tarifs and find 
+// those applicable to the consumption
+function loop_through_tariffs(response) {
+	cur_frm.clear_table("items");
+	cur_frm.refresh_field("items");
+
+	// sort the values using max value
+	var list_of_items = response.message
+	list_of_items.sort(function (a, b) { return a.max_quantity - b.max_quantity });
+
+	// looping throough list of items(tarifs)
+	for (var i = 0; i < list_of_items.length; i++) {
+		var current_item = list_of_items[i]
+		if (cur_frm.doc.consumption) {
+			if (cur_frm.doc.consumption >= current_item.min_quantity) {
+				var units_within_category = cur_frm.doc.consumption - current_item.min_quantity
+				console.log("units within category")
+				console.log(current_item)
+				console.log(units_within_category)
+				if (units_within_category > 0) {
+					if (units_within_category >= current_item.difference_btw_max_and_min) {
+						add_row_and_values(i, list_of_items, current_item.difference_btw_max_and_min)
+					}
+					else {
+						console.log("Going for the final row")
+						add_row_and_values(i, list_of_items, units_within_category + 1)
+					}
+				}
+				else if (units_within_category == 0 && current_item.name == defined_flat_rate) {
+					add_row_and_values(i, list_of_items, current_item.difference_btw_max_and_min)
+				}
+				else {
+					// do nothing because not units are found within category
+				}
+			}
+		}
+		else {
+			alert_message("Consumption is Not Given")
+		}
+
+	}
+
+	// add meter rent here
+	add_meter_rent(cur_frm.tariff_category)
+}
+
+
+/* function that creates a new sales invoice once the current one is saved
+allowing it to loop through all the list of customer e.g from meter reading
+sheet from meter reading capture list*/
+function get_the_next_customer() {
+	frappe.ui.form.on("Sales Invoice", {
+		after_save: function () {
+			var routeandperiod = cur_frm.doc.route + ' ' + cur_frm.doc.billing_period;
+
+			frappe.call({
+				"method": "frappe.client.get",
+				args: {
+					doctype: "Meter Reading Capture",
+					name: routeandperiod
+				},
+				callback: function (data) {
+					var meter_reading_sheet_table = data.message.meter_reading_sheet
+					if (rowcount < meter_reading_sheet_table.length - 1) {
+						var current_customer_details = meter_reading_sheet_table[rowcount]
+						frappe.route_options = {
+							"previous_reading": current_customer_details.previous_manual_reading,
+							"current_reading": current_customer_details.current_manual_readings,
+							"consumption": current_customer_details.manual_consumption,
+							"type_of_bill": current_customer_details.type_of_bill,
+							"billing_period": cur_frm.doc.billing_period,
+							"type_of_invoice": "bill",
+							"customer": current_customer_details.customer_name,
+							"tariff_category": current_customer_details.type_of_customer,
+							"from_finish_capture": "true"
+						}
+
+						frappe.set_route("Form", "Sales Invoice", "New Sales Invoice currentrow")
+						rowcount += 1
+					}
+
+				}
+			});
+		}
+	});
+}
+
+
+/*function that sets the customer details when sales invoice
+form is opened*/
+function set_customer_details() {
+	frappe.call({
+		"method": "frappe.client.get",
+		args: {
+			doctype: "Customer",
+			filters: { "Name": cur_frm.doc.customer }
+		},
+		callback: function (data) {
+			console.log("customer name")
+			console.log(cur_frm.doc.customer)
+			set_general_details(data) /* set customer details and readings*/
+
+			// check if from finish capture
+			if (cur_frm.doc.from_finish_capture) {
+				console.log("yes from finish capture")
+				add_items() /*add values to child table items*/
+				get_the_next_customer()/* get the next customer from meter reading capture*/
+			}
+			else {
+				console.log("not defined")
+			}
+
+		}
+	})
+}
+
+// function that loops through the list of items and finds 
+// those that are apllicable
+function loop_through_tariff_items(response) {
+	// cur_frm.clear_table("items");
+	// cur_frm.refresh_field("items");
+
+	// sort the values using max value
+	var list_of_items = response.message
+	list_of_items.sort(function (a, b) { return a.max_quantity - b.max_quantity });
+
+	// looping throough list of items(tarifs)
+	for (var i = 0; i < list_of_items.length; i++) {
+		var current_item = list_of_items[i]
+		if (cur_frm.doc.consumption) {
+			if (cur_frm.doc.consumption >= current_item.min_quantity) {
+				var units_within_category = cur_frm.doc.consumption - current_item.min_quantity
+				console.log("units within category")
+				console.log(current_item)
+				console.log(units_within_category)
+				if (units_within_category > 0) {
+					if (units_within_category >= current_item.difference_btw_max_and_min) {
+						add_row_and_values(i, list_of_items, current_item.difference_btw_max_and_min)
+					}
+					else {
+						console.log("Going for the final row")
+						add_row_and_values(i, list_of_items, units_within_category + 1)
+					}
+				}
+				else if (units_within_category == 0 && current_item.name == defined_flat_rate) {
+					add_row_and_values(i, list_of_items, current_item.difference_btw_max_and_min)
+				}
+				else {
+					// do nothing because not units are found within category
+				}
+			}
+		}
+		else {
+			alert_message("Consumption is Not Given")
+		}
+
+	}
+
+	// add meter rent here
+	add_meter_rent(cur_frm.tariff_category)
+}
+
+
+function loop_thro(frm){
+	if(frm.doc.type_of_customer == "Domestic"){
+		frappe.call({
+			"method": "frappe.client.get_list",
+			args: {
+				doctype: "Item",
+				filters: {
+					type_of_customer:frm.doc.type_of_customer,
+					type_of_item:frm.doc.type_of_invoice
+				},
+				fields: ["*"]
+			},
+			callback: function (response) {
+
+			}
+		})
+	}
+}
+
+
+// functions that adds rows
+function add_rows(frm,row_number, current_item_name){
+	// clear the child table items
+	cur_frm.clear_table("items");
+	cur_frm.refresh_field("items");
+
+	var l = [
+		[
+			{column_title:"item_code",column_value:"Deposit(Domestic)"},
+			{column_title:"qty",column_value:1}
+		],
+		[
+			{column_title:"item_code",column_value:"Deposit(Domestic)"},
+			{column_title:"qty",column_value:1}
+		]
+	]
+
+	// for(var i = 0; i<l.length;i++){
+		
+		add_one_row_and_value(frm,l)
+	// }
+
+	// function that add a row and corresping values
+	function add_one_row_and_value(frm,current_row){
+		console.log("adding rows")
+		var new_row = frm.grids[0].grid.add_new_row(null, null, false);
+		cur_frm.refresh_field("items");
+
+		// new_row[column_title] = column_value
+		new_row["item_code"] ="Deposit(Commercial)" 
+		new_row["qty"] = 2
+		new_row["item_name"] = "Deposit(Commercial)"
+		new_row["description"] = "Deposit(Commercial)"
+		new_row["uom"] = "Nos"
+		new_row["income_account"] = "Cost of Goods Sold - UL"
+		new_row["conversion_factor"] = 1
+
+		// newrow.item_code = list_of_items[i].name
+		// newrow.qty = units_within_category
+		// newrow.item_name = list_of_items[i].name
+		// newrow.description = list_of_items[i].name
+		// newrow.uom = 'm3'
+		// newrow.income_account = "Cost of Goods Sold - UL"
+		// newrow.uom_conversion_factor = 1
+		
+		// for(var i = 0;i<current_row.length;i++){
+		// 	var column_title = current_row[i]["column_title"]
+		// 	var column_value = current_row[i]["column_value"]
+
+		// 	new_row[column_title] = column_value
+		// 	ne
+		// 	new_row["item_name"] = ""
+		// 	new_row["UOM"] = "Nos"
+		// }
+		cur_frm.refresh_field("items");
+	}
+}
+
+// function that gets applicable items
+function get_items(frm) {
+	// check is tariff category is defined
+	return new Promise((resolve, reject) => {
+		frappe.call({
+			"method": "frappe.client.get_list",
+			args: {
+				doctype: "Item",
+				filters: {
+					type_of_customer:frm.doc.type_of_customer,
+					type_of_item:frm.doc.type_of_invoice
+				},
+				fields: ["*"]
+			},
+			callback: function (response) {
+				if (response.message.length > 0) {
+					resolve({ "status": true, message: response })
+				}
+				else {
+					var message = "No Applicable Items were found for this customer type and invoice"
+					resolve({ "status": false, message:message})
+				}
+			}
+		});
+	});
+}
+
+// function that checks that all the required fields are filled
+function check_required_fields(frm) {
+	if (frm.doc.type_of_invoice == "Bill") {
+		var required_fields = required_fields_for_each_invoice["bill"]
+		return looping_function(frm, required_fields)
+	}
+	else if (frm.doc.type_of_invoice == "Deposit") {
+		var required_fields = required_fields_for_each_invoice["deposit"]
+		var test_var = looping_function(frm, required_fields)
+		return looping_function(frm, required_fields)
+	}
+	else if (frm.doc.type_of_invoice == "New Connection Fee") {
+		var required_fields = required_fields_for_each_invoice["new_connection_fee"]
+		return looping_function(frm, required_fields)
+	}
+	else if (frm.doc.type_of_invoice == "Penalty") {
+		var required_fields = required_fields_for_each_invoice["penalty"]
+		return looping_function(frm, required_fields)
+	}
+	else if (frm.doc.type_of_invoice == "Other") {
+		var required_fields = required_fields_for_each_invoice["other"]
+		return looping_function(frm, required_fields)
+	}
+	else {
+		return { "status": false, "field": "Something Went Wrong while Checking, please ensure all the fields are available" }
+	}
+
+	/*function that loops through each function*/
+	function looping_function(frm, required_fields) {
+		for (var i = 0; i < required_fields.length; i++) {
+			var current_field = required_fields[i]
+			var if_field = check_field_filled(frm, current_field)
+			if (if_field) {
+				// continue
+			}
+			else {
+				alert_message("Please fill the field " + current_field)
+				return { "status": false, "field": current_field }
+			}
+		}
+		// if all the fields are available
+		return { "status": true }
+	}
+
+	/* function that checks if each field is filled or empty*/
+	function check_field_filled(frm, field_name) {
+		var my = field_name
+
+		if (String(frm.doc[my]).length) {
+			return true
+		}
+		else {
+			return false
+		}
+	}
+}
+
+
+/*function that hides fields ,called on refresh*/
+function hide_unhide_fields(frm, list_of_fields, hide_or_unhide) {
+	for (var i = 0; i < list_of_fields.length; i++) {
+		frm.toggle_display(list_of_fields[i], hide_or_unhide)
+	}
+}
+
+
+// function that hides or unhides certain fields on refresh
+function hide_unhide_on_refresh(frm) {
+	console.log("On refresh")
+	if (frm.doc.type_of_invoice == "Bill") {
+		hide_function(frm, field_to_hide_unhide, "bill")
+	}
+	else if (frm.doc.type_of_invoice == "Deposit") {
+		hide_function(frm, field_to_hide_unhide, "deposit")
+	}
+	else if (frm.doc.type_of_invoice == "New Connection Fee") {
+		hide_function(frm, field_to_hide_unhide, "new_connection_fee")
+	}
+	else if (frm.doc.type_of_invoice == "Penalty") {
+		hide_function(frm, field_to_hide_unhide, "penalty")
+	}
+	else if (frm.doc.type_of_invoice == "Other") {
+		hide_function(frm, field_to_hide_unhide, "other")
+	}
+	else {
+		hide_function(frm, field_to_hide_unhide, "none")
+	}
+
+	function hide_function(frm, field_to_hide_unhide, type_of_invoice) {
+		var hide_fields = field_to_hide_unhide["all"]
+		var unhide_fields = field_to_hide_unhide[type_of_invoice]
+		if (type_of_invoice == "none") {
+			hide_unhide_fields(frm, hide_fields, false)
+		}
+		else {
+			hide_unhide_fields(frm, hide_fields, false)
+			hide_unhide_fields(frm, unhide_fields, true)
+		}
+	}
+}
+
+// function that creates the sales invoice based on the type of invoice
+// it is called when all the required fields have been filled
+function collect_items(frm) {
+	console.log("collect items")
+	if (frm.doc.type_of_invoice == "Bill") {
+		// do nothing for now
+	}
+	else if (frm.doc.type_of_invoice == "Deposit") {
+		var type_of_customer = frm.doc.type_of_customer
+		console.log("type of customer")
+		return true
+	}
+	else if (frm.doc.type_of_invoice == "New Connection Fee") {
+
+	}
+	else if (frm.doc.type_of_invoice == "Penalty") {
+
+	}
+	else if (frm.doc.type_of_invoice == "Other") {
+
+	}
+	else {
+		console.log("Something went wrong with the check_required_details function")
+	}
+}
+
+/* end of the general functions section
+// =================================================================================================
+/* This section  contains functions that are triggered by the form action refresh or
+reload to perform various action*/
+
+/* end of the form triggered functions section
+// =================================================================================================
+/*function that acts when the readings field under meter reading sheet is
+filled*/
+
+
+// function that runs on refresh
+frappe.ui.form.on("Sales Invoice", "refresh", function (frm) {
+	console.log("Refreshing !")
+	hide_unhide_on_refresh(frm)
+
+	// customer_field()
+	// type_of_invoice_clicked(frm)
 })
+
+// function that runs when the type_of_invoice field is clicked
+frappe.ui.form.on("Sales Invoice", "type_of_invoice", function (frm) {
+	frm.refresh()
+
+})
+
+// function that runs when the collect items button is clicked
+frappe.ui.form.on("Sales Invoice", "collect_items", function (frm) {
+	// checks that all fields are fields
+	/*
+	new Promise((resolve, reject) => {
+		resolve(check_required_fields(frm))
+	})
+	.then((x)=>{
+		// get applicable sales items
+		if(x.status = true){
+			return get_items(frm)
+		}
+		else if(x.status = false){
+			alert_message(x.message)
+		}
+	})
+	.then((x)=>{
+		// filter applicable items
+		console.log(x)
+		add_rows(frm,0, "Deposit(Domestic)")
+	})*/
+
+	// cur_frm.grids[0].grid.add_new_row(null, null, false);
+	// cur_frm.refresh_field("items");
+
+	/*
+	var new_row = frm.grids[0].grid.add_new_row(null, null, false);
+	// new_row[column_title] = column_value
+	new_row["item_code"] ="Deposit(Commercial)" 
+	new_row["rate"] = 10
+	new_row["qty"] = 2
+	new_row["item_name"] = "Deposit(Commercial)"
+	new_row["description"] = "Deposit(Commercial)"
+	new_row["uom"] = "Nos"
+	new_row["income_account"] = "Cost of Goods Sold - UL"
+	new_row["conversion_factor"] = 1
+
+	total_qt
+	cur_frm.refresh_field("items");
+	*/
+});

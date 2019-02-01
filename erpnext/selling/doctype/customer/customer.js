@@ -136,6 +136,7 @@ frappe.ui.form.on("Customer", {
 /*general functions section*/
 // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 // global variables
+
 var latest_customer_sys_no = 0
 
 // end of global varibles section
@@ -165,11 +166,22 @@ function alert_message(message_to_print){
 // alert function
 function alert_new_project(alert_message){
 	frappe.confirm(
-		alert_message("Do You Want to Create a Project for this Customer"),
+		alert_message("Have You Vefied All Customer Details"),
 		function(){
-			// create a new project
-			frappe.route_options = {"system_no":cur_frm.doc.system_no,"customer":cur_frm.doc.customer_name}
-			frappe.set_route("Form", "Project","New Project 1")
+			// change the status to verified
+		}
+	)
+}
+
+// alert function
+function confirm_verify_customer(new_status){
+	frappe.confirm(
+		"Have you verified all the customer details?",
+		function(){
+			cur_frm.set_value("status", new_status)
+			cur_frm.set_value("customer_verified", "Yes")
+			cur_frm.save();
+			show_alert('Customer Was Verified Successfully, You Can Now Set the Status to Active')
 		}
 	)
 }
@@ -201,9 +213,21 @@ function add_custom_buttons(button_name,new_status){
 				alert_message("You Cannot Supercede This Account")
 			}
 		}
+		else if(new_status == "Verified"){
+			
+		}
 		else{
-			cur_frm.set_value("status", new_status)
-			cur_frm.save();
+			if(cur_frm.doc.customer_verified == "No" && new_status != "Inactive"){
+				alert_message("You Need to Verify the Customer First")
+			}
+			if(cur_frm.doc.customer_verified == "No" && new_status == "Inactive"){
+				confirm_verify_customer(new_status)
+			}
+			else{
+				cur_frm.set_value("status", new_status)
+				cur_frm.save();
+			}
+			
 		}
 	},__("Customer Management Menu"));
 }
@@ -220,7 +244,6 @@ function filter_field(field,filter_name1,filter_name2){
 }
 
 
-
 /*frappe call function that gets a docytype without filters*/
 function get_doctype_without_filters(requested_doctype){
 	frappe.call({
@@ -235,6 +258,8 @@ function get_doctype_without_filters(requested_doctype){
 
 }
 
+
+
 // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 /*end of the general functions section*/
 
@@ -243,6 +268,7 @@ function get_doctype_without_filters(requested_doctype){
 // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 /*Functionality that sets the value of form query 'route' 
 to show only routes*/
+
 frappe.ui.form.on("Customer", "refresh", function(frm) {
 	console.log("Running through js")
 	
@@ -260,6 +286,7 @@ frappe.ui.form.on("Customer", "refresh", function(frm) {
 	add_custom_buttons("Disconnect","Disconnected")
 	add_custom_buttons("Terminate","Terminated")
 	add_custom_buttons("Supercede","Supercede")
+	add_custom_buttons("Verify Customer","Inactive")
 
 	// filter dma by warehouse dma
 	// filter_field("dma","DMA Bulk Meter - UL")
@@ -291,5 +318,6 @@ frappe.ui.form.on("Customer", "create_application", function(frm) {
 		alert_message("Cannot Create Project for a Customer whose Status is not Pending")
 	}
 });
+
 // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 /*End of the field triggered functions*/

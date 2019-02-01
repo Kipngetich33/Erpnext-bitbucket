@@ -87,3 +87,80 @@ erpnext.LeadController = frappe.ui.form.Controller.extend({
 });
 
 $.extend(cur_frm.cscript, new erpnext.LeadController({frm: cur_frm}));
+
+
+/* section below contains general functions*/
+// =================================================================================================
+
+// global variables
+
+var field_to_hide_unhide = {
+	new_connection:["region","zone","landlord_first_name",
+		"landlord_middle_name","landlord_surname",
+		"plot_no","landlord_phone_number_","type_of_sanitation"
+	],
+	all:["region","zone","landlord_first_name",
+		"landlord_middle_name","landlord_surname",
+		"plot_no","landlord_phone_number_","type_of_sanitation"
+	],
+}
+
+/*function that hides fields ,called on refresh*/
+function hide_unhide_fields(frm, list_of_fields, hide_or_unhide) {
+	for (var i = 0; i < list_of_fields.length; i++) {
+		frm.toggle_display(list_of_fields[i], hide_or_unhide)
+	}
+}
+
+
+// function that hides or unhides certain fields on refresh
+function hide_unhide_on_refresh(frm) {
+	console.log("On refresh")
+	if (frm.doc.new_connection == "Willing to be connected") {
+		hide_function(frm, field_to_hide_unhide, "new_connection")
+	}
+	else if (frm.doc.new_connection == "Not Willing to be connected") {
+		hide_function(frm, field_to_hide_unhide, "new_connection")
+	}
+	else {
+		hide_function(frm, field_to_hide_unhide, "none")
+	}
+
+	function hide_function(frm, field_to_hide_unhide, selected_option) {
+		var hide_fields = field_to_hide_unhide["all"]
+		var unhide_fields = field_to_hide_unhide[selected_option]
+		if (selected_option == "none") {
+			hide_unhide_fields(frm, hide_fields, false)
+		}
+		else {
+			hide_unhide_fields(frm, hide_fields, false)
+			hide_unhide_fields(frm, unhide_fields, true)
+		}
+	}
+}
+
+
+
+/* end of the general functions section
+// =================================================================================================
+/* This section  contains functions that are triggered by the form action refresh or
+reload to perform various action*/
+
+/* end of the form triggered functions section
+// =================================================================================================
+/*function that acts when the fields in the sheet are filled*/
+
+
+frappe.ui.form.on('Lead', {
+	refresh: function(frm) {
+		hide_unhide_on_refresh(frm)
+
+	}
+});
+
+
+frappe.ui.form.on("Lead", "new_connection", function (frm) {
+	console.log("clicked")
+	frm.refresh()
+
+})

@@ -409,7 +409,15 @@ def check_required_details(self):
 		frappe.throw("Customer's Previous Reading Field is Empty")
 	else:
 		pass
-	
+
+	# check readings
+	if(self.area == None):
+		frappe.throw("Customer's Area Field is Empty")
+	elif(self.zone == None):
+		frappe.throw("Customer's Zone Field is Empty")
+	elif(self.route == None):
+		frappe.throw("Customer's Area Field is Empty")
+
 	# check if dma exists
 	if(self.dma == None):
 		frappe.throw("Customer's DMA Field is Empty")
