@@ -69,3 +69,64 @@ frappe.ui.form.on("Issue", {
 		}
 	}
 });
+
+// =================================================================================================
+
+// global variables
+var field_to_hide_unhide = {
+	leak_report: ["location","leak_assessment",
+				"condition_of_fitting","leak_repair","section_break_40",
+				"materials_used_for_repair","remarks","section_break_25"
+	],
+	other: [],
+	all: [
+		"location","leak_assessment",
+		"condition_of_fitting","leak_repair","section_break_40",
+		"materials_used_for_repair","remarks","section_break_25"
+	],
+}
+
+// function that hides or unhides certain fields on refresh
+function hide_unhide_on_refresh(frm) {
+	console.log("On refresh")
+	if (frm.doc.issue_type == "Leak Report") {
+		hide_function(frm, field_to_hide_unhide, "leak_report")
+	}
+	else if (frm.doc.issue_type == "Other") {
+		hide_function(frm, field_to_hide_unhide, "other")
+	}
+	else {
+		hide_function(frm, field_to_hide_unhide, "none")
+	}
+
+	function hide_function(frm, field_to_hide_unhide, issue_type) {
+		var hide_fields = field_to_hide_unhide["all"]
+		var unhide_fields = field_to_hide_unhide[issue_type]
+		if (issue_type == "none") {
+			hide_unhide_fields(frm, hide_fields, false)
+		}
+		else {
+			hide_unhide_fields(frm, hide_fields, false)
+			hide_unhide_fields(frm, unhide_fields, true)
+		}
+	}
+
+	/*function that hides fields ,called on refresh*/
+	function hide_unhide_fields(frm, list_of_fields, hide_or_unhide) {
+		for (var i = 0; i < list_of_fields.length; i++) {
+			frm.toggle_display(list_of_fields[i], hide_or_unhide)
+		}
+	}
+}
+
+
+// the code below are custom script
+frappe.ui.form.on("Issue", "refresh",function(frm){
+	console.log("Refreshing !")
+	hide_unhide_on_refresh(frm)
+});
+
+// function that runs when the type_of_invoice field is clicked
+frappe.ui.form.on("Issue", "issue_type", function (frm) {
+	frm.refresh()
+})

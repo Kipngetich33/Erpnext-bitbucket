@@ -97,11 +97,13 @@ $.extend(cur_frm.cscript, new erpnext.LeadController({frm: cur_frm}));
 var field_to_hide_unhide = {
 	new_connection:["region","zone","landlord_first_name",
 		"landlord_middle_name","landlord_surname",
-		"plot_no","landlord_phone_number_","type_of_sanitation"
+		"plot_no","landlord_phone_number_","type_of_sanitation",
+		"gps_location"
 	],
 	all:["region","zone","landlord_first_name",
 		"landlord_middle_name","landlord_surname",
-		"plot_no","landlord_phone_number_","type_of_sanitation"
+		"plot_no","landlord_phone_number_","type_of_sanitation",
+		"gps_location"
 	],
 }
 
