@@ -11,9 +11,6 @@ from frappe import _
 from frappe.utils.nestedset import NestedSet
 
 class Territory(NestedSet):
-   
-    print "*"*80
-    print "this prints first"
     nsm_parent_field = 'parent_territory'
     def validate(self):
         print "*"*100
@@ -21,17 +18,30 @@ class Territory(NestedSet):
         for d in self.get('targets') or []:
             if not flt(d.target_qty) and not flt(d.target_amount):
                 frappe.throw(_("Either target qty or target amount is mandatory"))
-        
+
         # capitalize the name
         capitalized_name = parse_names(self.name)
         self.actual_territory_name = capitalized_name
         # check if Territory is already saved
         if(self.saved == "yes"):
-            # do nothing 
+            # do nothing
             pass
         else:
             self.saved = "yes"
-            self.name = capitalized_name + "-("+self.parent_territory+")"
+            territory_available = check_territory_availability(capitalized_name,self.parent_territory)
+            
+            if(territory_available["status"]):
+                if(territory_available["message"]=="Duplicate"):
+                    pass
+                elif(territory_available["message"]=="Similar"):
+                    # create territory and append parent name
+                    self.territory_name = capitalized_name + "-"+self.parent_territory
+                    self.name = capitalized_name + "-"+self.parent_territory
+
+            elif(territory_available["status"] == False):
+                # create territory
+                self.territory_name = capitalized_name
+                self.name = capitalized_name
 
     def on_update(self):
         super(Territory, self).on_update()
@@ -60,3 +70,44 @@ def parse_names(given_name):
             full_word += part.capitalize()
     return full_word
 
+
+def check_territory_availability(territory_name,parent_territory):
+    '''
+    Function that checks for the availbility territories
+    arg:
+        territory name, parent territory
+    output:
+        {"status":True,"message":message} 
+        or
+        {"status":True,"message":message}
+    '''
+    # get list of territories matching creteria
+    results = frappe.get_list("Territory",
+            fields=["*"],
+            filters = {
+				"territory_name":territory_name,
+                "parent_territory":parent_territory
+			}
+    )
+
+    # get list of territories matching creteria from different 
+    # parent
+    other_results = frappe.get_list("Territory",
+            fields=["*"],
+            filters = {
+				"territory_name":territory_name,
+                "parent_territory":("!=",parent_territory)
+			}
+    )
+
+    if(len(results)==0):
+        # no duplicate name undersame parent
+        if(len(other_results)==0):
+            # no territory from other parents have name
+            return {"status":"False"}
+        else:
+            # territories from other parents have name
+            return {"status":True, "message":"Similar"}
+    else:
+        # duplicate under the same name
+        return {"status":True , "message":"Duplicate"}

@@ -25,21 +25,18 @@ def main_function():
     current_start = get_last_system_values(form_id)
     pulled_data = pull_from_ona()
 
-    pulled_data = pulled_data[:14964]
-    # loop throught each record in pulled data
-    # print "*"*20
-    # print pulled_data[14964]["service_area_details/region_name"]
-    # print "*"*20
-    # print pulled_data[14965]["service_area_details/region_name"]
-    # print "*"*20
-    # print pulled_data[14966]["service_area_details/region_name"]
-    # '''
+    # pulled_data = pulled_data[14964]
+
     i = 0 
     for record in pulled_data:
         i += 1
         print "index"
         print i
-        # get area and zone
+
+
+        # due to many issues comment out the create/update terriroy section below
+        '''
+        # get area and zone       
         current_area = record["service_area_details/region_name"]
         current_zone_key = "service_area_details/"+current_area
         current_zone = record[current_zone_key]
@@ -48,6 +45,7 @@ def main_function():
         parse_area_name = parse_names(current_area)
         parse_zone_name = parse_names(current_zone)
         area_available = check_territory_availability(parse_area_name,"Kenya")
+
         if(area_available):
             print "already available"
             # do nothing
@@ -55,11 +53,10 @@ def main_function():
         else:
             print "creating territoy"
             # create the area
-            create_territory(current_area,"Area","Kenya")
+            create_territory(parse_area_name,"Area","Kenya")
 
-        '''
         # check if the current zone exists
-        zone_available = check_territory_availability(current_zone,current_area)
+        zone_available = check_territory_availability(parse_zone_name,parse_area_name)
         if(zone_available):
             print "Zone already available"
             # do nothing
@@ -67,8 +64,12 @@ def main_function():
         else:
             print "creating zone"
             # create the zone
-            create_territory(current_zone,"Zone",current_area)
+            create_territory(parse_zone_name,"Zone",parse_area_name)
         '''
+        
+        # create or update account section below
+        pass
+
 
 # Adding tasks to run periodically
 def pull_from_ona():
@@ -289,17 +290,6 @@ def check_account_availablity(account_number):
     else:
         return True
 
-def case_parser(name):
-    '''
-    Function that parses and return three different case
-    combination:
-    arg:
-        example "Name"
-    Output:
-        ["Name","name","NAME"]
-    '''
-    pass
-
 def create_territory(territory_name,territory_type,parent_territory):
     '''
     Function that creates a new territory and places
@@ -314,45 +304,82 @@ def create_territory(territory_name,territory_type,parent_territory):
     if(territory_type == "Route"):
         is_group = 0
 
-    new_territory = frappe.get_doc({"doctype":"Territory"})
+    # get ancestral territory
+    if(parent_territory == "Kenya" ):
+        ancestral_territory = "All Territories"
+    else:
+        ancestral_territory = "Kenya"
 
+    # get the correct parent territory name
+    results = frappe.get_list("Territory",
+            fields=["*"],
+            filters = {
+				"territory_name":parent_territory,
+                "parent_territory":ancestral_territory
+			}
+        )
+    parental_territory_name = results[0]["name"]
+
+    new_territory = frappe.get_doc({"doctype":"Territory"})
     # append the type of territory to the end of the name
     new_territory.territory_name = territory_name
     new_territory.type_of_territory = territory_type
-    new_territory.parent_territory = parent_territory
+    new_territory.parent_territory = parental_territory_name
     new_territory.is_group = is_group
     new_territory.insert()
+
 
 def check_territory_availability(territory_name,parent_territory):
     '''
     Function that checks for the availbility territories
     arg:
-        territory name, parent territory
+        territory name, parent territory 
     output:
         {"status":True,"message":message} 
         or
-        {"status":True,"message":message}
+        {"status":False}
     '''
+
+    territory_name = "Route 1.1"
+    parent_territory = "Area A"
     # get list of territories matching creteria
-    print "Availability"
-    print territory_name
-    print parent_territory
-    territory_name += "-("+parent_territory+")"
     results = frappe.get_list("Territory",
             fields=["*"],
             filters = {
-				"name":territory_name,
+				"territory_name":territory_name,
                 "parent_territory":parent_territory
 			}
     )
 
-    print "final territory name"
-    print territory_name
+    # get list of territories matching creteria from different 
+    # parent
+    other_results = frappe.get_list("Territory",
+            fields=["*"],
+            filters = {
+				"territory_name":territory_name,
+                "parent_territory":("!=",parent_territory)
+			}
+    )
+
     if(len(results)==0):
-        return False
+        # no duplicate name undersame parent
+        if(len(other_results)==0):
+            # no territory from other parents have name
+            return {"status":"False"}
+        else:
+            # territories from other parents have name
+            return {"status":True, "message":"Similar"}
     else:
-        return True 
+        # duplicate under the same name
+        return {"status":True , "message":"Duplicate"}
    
+def availability_of_territory_with_appended_parent():
+    '''
+    Function that checks the availability of a territory
+    even when there is an appended parent using 
+    actual_territory_name field
+    '''
+    pass
 
 
 def create_survey_data(matching_fields):
